@@ -47,6 +47,38 @@ func TestMain(m *testing.M) {
 	}
 }
 
+ func TestHashHandlerNoForm(t *testing.T) {
+    res, err := http.Post(ts.URL + "/hash", "html", nil)
+    if err != nil {
+       	log.Fatal(err)
+    }
+    if res.StatusCode != http.StatusBadRequest {
+    	t.Errorf("Should not allow posts without a form")
+    }
+}
+
+ func TestHashHandlerNoPasswordQuery(t *testing.T) {
+ 	v := url.Values{}
+    v.Set("other", "angryMonkey")
+    res, err := http.PostForm(ts.URL + "/hash", v)
+    if err != nil {
+       	log.Fatal(err)
+    }
+    if res.StatusCode != http.StatusBadRequest {
+    	t.Errorf("Should not allow posts without a password query")
+    }
+}
+
+func TestHashHandlerGet(t *testing.T) {
+    res, err := http.Get(ts.URL + "/hash")
+    if err != nil {
+       	log.Fatal(err)
+    }
+    if res.StatusCode != http.StatusMethodNotAllowed {
+    	t.Errorf("Get is not an allowed method")
+    }
+}
+
  func TestHashHandlerLeavesSocketOpen(t *testing.T) {
  	start := time.Now()
 
