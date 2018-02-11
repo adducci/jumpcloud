@@ -11,6 +11,9 @@ import (
    "sync"
 )
 
+/*
+SET UP FOR HASH HANDLER TESTS
+*/
 var ts *httptest.Server
 
 func TestMain(m *testing.M) {
@@ -23,6 +26,69 @@ func TestMain(m *testing.M) {
   m.Run()
 }
 
+
+/*
+TEST FOR MY SERVER
+*/
+func TestMyServerMakeServer(t *testing.T) {
+  cases := []struct {
+    in string;
+    addr string;
+    handler hashHandler;
+  } {
+    {"8080", "localhost:8080", hashHandler{}},
+  }
+    for _, c := range cases {
+        makeServer(c.in)
+    if s.Addr != c.addr && s.Handler != c.handler {
+      t.Errorf("makeServer(%q) == {Addr : %q, Hanlder : %q}, want {Addr : %q, Handler : %q", c.in, s.Addr, s.Handler, c.addr, c.handler)
+    }
+  }
+}
+
+func TestMyServerRun(t *testing.T) {
+  go Run("8082")
+  _, err := http.Get("localhost:8082/")
+  if err == nil {
+    t.Errorf("Server not running")
+  }
+  shutdownMyServer()
+}
+
+func TestMyServerShutdown(t *testing.T) {
+  go Run("8082")
+
+  var wait sync.WaitGroup
+  wait.Add(1)
+
+  var res *http.Response
+  v := url.Values{}
+  v.Set("password", "angryMonkey")
+  go func () { 
+    defer wait.Done()
+    res, _ = http.PostForm(ts.URL + "/hash", v)
+  }()
+
+  shutdownMyServer()
+
+  wait.Wait()
+
+  got, _ := ioutil.ReadAll(res.Body)
+  res.Body.Close()
+  if string(got) != "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q==" {
+    t.Errorf("Shutdown not processing requests already sent")
+  }
+
+  _, err := http.Get("localhost:8082/")
+  if err == nil {
+    t.Errorf("Server accepting requests after shutdown")
+  }
+}
+
+
+/*
+TESTS FOR HASH HANDLER
+*/
  func TestHashHandlerReturnsCorrectHash(t *testing.T) {
  	cases := []struct {
 		in, want string
