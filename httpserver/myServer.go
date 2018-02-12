@@ -22,7 +22,7 @@ func makeServer(port string) {
 }
 
 /*
-Shutsdown the server with no cancel or deadline
+Shuts down the server with no cancel or deadline
 */
 func shutdownMyServer() {
 	s.Shutdown(context.Background())

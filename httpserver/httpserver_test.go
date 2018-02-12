@@ -147,35 +147,89 @@ func TestHashHandlerPasswordStoredAtCorrectId(t *testing.T) {
   }
 }
 
+func TestHashHandlerPasswordGetId(t *testing.T) {
+  cases := []struct {
+    in, want string
+  } {
+    {"thisPassword", "qoNIxVxpNORI0PURYPpzz34mCogGX7LcHopAADCdq/E7ywCJ8kou1dhw/HM2p0qfuQv9FDIa6VFl1RaOxwExSw=="},
+  }
+  for _, c := range cases {
+    resPost := postToHash(c.in)
+    got := getBodyOfResponse(resPost)
+    time.Sleep(time.Second * 6)
+
+
+    resGet, _ := http.Get(ts.URL + "/hash/" + string(got))
+    hash := getBodyOfResponse(resGet)
+    
+    if string(hash) != c.want {
+      t.Errorf("/hash?password=%q == %q, want %q", c.in, hashes.m[string(got)], c.want)
+    }
+  }
+}
+
+
  func TestHashHandlerNoForm(t *testing.T) {
     res, err := http.Post(ts.URL + "/hash", "html", nil)
     if err != nil {
-       	log.Fatal(err)
+        log.Fatal(err)
     }
     if res.StatusCode != http.StatusBadRequest {
-    	t.Errorf("Should not allow posts without a form")
+      t.Errorf("Status code for post to /hash without form %v wanted 400 needs form", res.Status)
     }
 }
 
- func TestHashHandlerNoPasswordQuery(t *testing.T) {
+func TestHashHandlerNoPasswordQuery(t *testing.T) {
  	v := url.Values{}
   v.Set("other", "angryMonkey")
   res, err := http.PostForm(ts.URL + "/hash", v)
   if err != nil {
    	log.Fatal(err)
   }
-  if res.StatusCode != http.StatusBadRequest {
-  	t.Errorf("Should not allow posts without a password query")
+  got := getBodyOfResponse(res)
+  if string(got) != "400 needs password query" {
+  	t.Errorf("Status code for post to /hash without password query %v wanted 400 need password query", string(got))
   }
 }
 
-func TestHashHandlerGet(t *testing.T) {
+func TestHashHandlerPostHashId(t *testing.T) {
+    res, err := http.Post(ts.URL + "/hash/2", "html", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    got := getBodyOfResponse(res)
+    if string(got) != "405 method not allowed" {
+      t.Errorf("Status code for post to /hash/{:id} without form %v wanted 405 method not allowed", string(got))
+    }
+}
+
+func TestHashHandlerGetNoId(t *testing.T) {
   res, err := http.Get(ts.URL + "/hash")
   if err != nil {
    	log.Fatal(err)
   }
-  if res.StatusCode != http.StatusMethodNotAllowed {
-   	t.Errorf("Get is not an allowed method")
+  got := getBodyOfResponse(res)
+  if string(got) != "405 method not allowed" {
+   	t.Errorf("Status code for get on /hash %v wanted 405 method not allowed", string(got))
+  }
+}
+
+func TestHashHandlerGetNonIntegerId(t *testing.T) {
+  res, err := http.Get(ts.URL + "/hash/hey")
+  if err != nil {
+    log.Fatal(err)
+  }
+  got := getBodyOfResponse(res)
+  if string(got) != "400 invalid path" {
+    t.Errorf("Status code for non integer id %v wanted 400 invalid path", string(got))
+  }
+}
+
+func TestHashHandlerPasswordGetInvalidId(t *testing.T) {
+  res, _ := http.Get(ts.URL + "/hash/500")
+  got := getBodyOfResponse(res)  
+  if string(got) != "404 hash not found" {
+    t.Errorf("Status code for invalid id number %v wanted 404 hash not found", string(got))
   }
 }
 
@@ -186,27 +240,6 @@ func TestHashHandlerPasswordNotHashedFor5Seconds(t *testing.T) {
 
   duration := time.Since(start).Seconds()
 	if duration < 5 || duration > 6 {
-		t.Errorf("Socket not lagging for 5 seonds")
-	} 
-}
-
-func TestHashHandlerConcurrentRequests(t *testing.T) {
-	start := time.Now()
-
-	var wait sync.WaitGroup
-	wait.Add(2)
-
-  for i := 0; i < 2; i++ {
-    go func () { 
-      defer wait.Done()
-      postToHash("angryMonkey")
-    }()
-  }
-
-  wait.Wait()
-
-  duration := time.Since(start).Seconds()
-	if duration > 6 {
-		t.Errorf("Not handling requests concurrently")
+		t.Errorf("Socket lagging for %v seconds wanted around 5", duration)
 	} 
 }
