@@ -9,6 +9,8 @@ import (
    "log"
    "time"
    "sync"
+   "strconv"
+   // "fmt"
 )
 
 /*
@@ -28,6 +30,30 @@ func TestMain(m *testing.M) {
 
 
 /*
+HELPER FUNCTIONS FOR REPEATED CODE
+*/
+func postToHash(password string) *http.Response {
+  v := url.Values{}
+  v.Set("password", password)
+  res, err := http.PostForm(ts.URL + "/hash", v)
+  if err != nil {
+    log.Fatal(err)
+  }
+  return res
+}
+
+
+func getBodyOfResponse(res *http.Response) []byte {
+  got, err := ioutil.ReadAll(res.Body)
+  res.Body.Close()
+  if err != nil {
+    log.Fatal(err)
+  }
+  return got
+}
+
+
+/*
 TEST FOR MY SERVER
 */
 func TestMyServerMakeServer(t *testing.T) {
@@ -40,7 +66,7 @@ func TestMyServerMakeServer(t *testing.T) {
   }
     for _, c := range cases {
         makeServer(c.in)
-    if s.Addr != c.addr && s.Handler != c.handler {
+    if s.Addr != c.addr {
       t.Errorf("makeServer(%q) == {Addr : %q, Hanlder : %q}, want {Addr : %q, Handler : %q", c.in, s.Addr, s.Handler, c.addr, c.handler)
     }
   }
@@ -62,20 +88,17 @@ func TestMyServerShutdown(t *testing.T) {
   wait.Add(1)
 
   var res *http.Response
-  v := url.Values{}
-  v.Set("password", "angryMonkey")
   go func () { 
     defer wait.Done()
-    res, _ = http.PostForm(ts.URL + "/hash", v)
+    res = postToHash("angryMonkey")
   }()
 
   shutdownMyServer()
 
   wait.Wait()
 
-  got, _ := ioutil.ReadAll(res.Body)
-  res.Body.Close()
-  if string(got) != "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q==" {
+  got := getBodyOfResponse(res)
+  if string(got) != "0" {
     t.Errorf("Shutdown not processing requests already sent")
   }
 
@@ -89,28 +112,39 @@ func TestMyServerShutdown(t *testing.T) {
 /*
 TESTS FOR HASH HANDLER
 */
- func TestHashHandlerReturnsCorrectHash(t *testing.T) {
- 	cases := []struct {
-		in, want string
-	} {
-		{"angryMonkey", "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q=="},
+ func TestHashHandlerIdIncrements(t *testing.T) {
+  res1 := postToHash("first")
+  got1 := getBodyOfResponse(res1)
+  id1, _ := strconv.ParseInt(string(got1), 10, 16)
+
+  res2 := postToHash("second")
+  got2 := getBodyOfResponse(res2)
+  id2, _ := strconv.ParseInt(string(got2), 10, 16)
+
+	if id1 != id2 - 1 {
+		t.Errorf("Consequetive requests returned ids %v, %v which are not incremental", got1, got2)
 	}
-    for _, c := range cases {
-    	v := url.Values{}
-    	v.Set("password", c.in)
-        res, err := http.PostForm(ts.URL + "/hash", v)
-        if err != nil {
-        	log.Fatal(err)
-        }
-        got, err := ioutil.ReadAll(res.Body)
-        res.Body.Close()
-        if err != nil {
-        	log.Fatal(err)
-        }
-		if string(got) != c.want {
-			t.Errorf("/hash?password=%q == %q, want %q", c.in, got, c.want)
-		}
-	}
+}
+
+func TestHashHandlerPasswordStoredAtCorrectId(t *testing.T) {
+  cases := []struct {
+    in, want string
+  } {
+    {"thisPassword", "qoNIxVxpNORI0PURYPpzz34mCogGX7LcHopAADCdq/E7ywCJ8kou1dhw/HM2p0qfuQv9FDIa6VFl1RaOxwExSw=="},
+  }
+  for _, c := range cases {
+    res := postToHash(c.in)
+    got := getBodyOfResponse(res)
+    time.Sleep(time.Second * 6)
+
+    hashes.RLock()
+    hash := hashes.m[string(got)]
+    hashes.RUnlock()
+    
+    if hash != c.want {
+      t.Errorf("/hash?password=%q == %q, want %q", c.in, hashes.m[string(got)], c.want)
+    }
+  }
 }
 
  func TestHashHandlerNoForm(t *testing.T) {
@@ -125,35 +159,32 @@ TESTS FOR HASH HANDLER
 
  func TestHashHandlerNoPasswordQuery(t *testing.T) {
  	v := url.Values{}
-    v.Set("other", "angryMonkey")
-    res, err := http.PostForm(ts.URL + "/hash", v)
-    if err != nil {
-       	log.Fatal(err)
-    }
-    if res.StatusCode != http.StatusBadRequest {
-    	t.Errorf("Should not allow posts without a password query")
-    }
+  v.Set("other", "angryMonkey")
+  res, err := http.PostForm(ts.URL + "/hash", v)
+  if err != nil {
+   	log.Fatal(err)
+  }
+  if res.StatusCode != http.StatusBadRequest {
+  	t.Errorf("Should not allow posts without a password query")
+  }
 }
 
 func TestHashHandlerGet(t *testing.T) {
-    res, err := http.Get(ts.URL + "/hash")
-    if err != nil {
-       	log.Fatal(err)
-    }
-    if res.StatusCode != http.StatusMethodNotAllowed {
-    	t.Errorf("Get is not an allowed method")
-    }
+  res, err := http.Get(ts.URL + "/hash")
+  if err != nil {
+   	log.Fatal(err)
+  }
+  if res.StatusCode != http.StatusMethodNotAllowed {
+   	t.Errorf("Get is not an allowed method")
+  }
 }
 
- func TestHashHandlerLeavesSocketOpen(t *testing.T) {
- 	start := time.Now()
+func TestHashHandlerPasswordNotHashedFor5Seconds(t *testing.T) {
+	start := time.Now()
 
-	v := url.Values{}
-    v.Set("password", "angryMonkey")
+  computeHash("angryMonkey", "5")
 
-    http.PostForm(ts.URL + "/hash", v)
-
-    duration := time.Since(start).Seconds()
+  duration := time.Since(start).Seconds()
 	if duration < 5 || duration > 6 {
 		t.Errorf("Socket not lagging for 5 seonds")
 	} 
@@ -165,19 +196,16 @@ func TestHashHandlerConcurrentRequests(t *testing.T) {
 	var wait sync.WaitGroup
 	wait.Add(2)
 
-	v := url.Values{}
-    v.Set("password", "angryMonkey")
+  for i := 0; i < 2; i++ {
+    go func () { 
+      defer wait.Done()
+      postToHash("angryMonkey")
+    }()
+  }
 
-    for i := 0; i < 2; i++ {
-        go func () { 
-            defer wait.Done()
-            http.PostForm(ts.URL + "/hash", v)
-        }()
-    }
+  wait.Wait()
 
-    wait.Wait()
-
-    duration := time.Since(start).Seconds()
+  duration := time.Since(start).Seconds()
 	if duration > 6 {
 		t.Errorf("Not handling requests concurrently")
 	} 

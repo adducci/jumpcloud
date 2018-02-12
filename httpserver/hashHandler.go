@@ -4,22 +4,61 @@ import (
     "fmt"
     "net/http"
     "time"
+    "sync"
+    "strconv"
     "github.com/adducci/jumpcloud/password"
 )
 
 
-/*
-Type hashHandler implements the handler interface
-*/
+//Type hashHandler implements the handler interface
 type hashHandler struct {}
 
+//Stores the hashes by their identifiers, enables locking
+var hashes = struct {
+	sync.RWMutex;
+	m map[string]string;
+
+} {
+	m : make(map[string]string),
+}
+
+//Next id to return, incremental
+var nextID int = 0
+
+
+
+
+
+/*
+Finds base64 encoded string of password with SHA512 hash
+Lag for 5 seconds before storing it in the slice
+*/
+func computeHash(pw, id string) {
+    time.Sleep(time.Second * 5)
+
+    hash := password.Encrypt(pw)
+
+    hashes.Lock()
+    hashes.m[id] = hash
+    hashes.Unlock()
+}
+
+
+/*
+Returns the next id to use
+*/
+func getCurrentId(i chan int) {
+   id := nextID
+   nextID++
+   i <- id
+}
 
 /*
 Handle requests to /hash
 
 Accept posts with a form field named password
-Respond with base64 encoded string of password with SHA512 hash
-Lag for 5 seconds before responding
+Returns an identifer that can be used to retrieve the hash later
+
 */
 func handleHash(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
@@ -27,9 +66,14 @@ func handleHash(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		pw, ok := r.PostForm["password"]
 		if ok {
-			//encrypt and return hashed password if given
-            fmt.Fprint(w, password.Encrypt(pw[0]))
-            time.Sleep(time.Second * 5)
+			//get the next id to use
+			i := make(chan int)
+            go getCurrentId(i)
+            id := <- i
+            strID := strconv.Itoa(id)
+
+			go computeHash(pw[0], strID)
+			fmt.Fprint(w, strID)
 		} else {
 			//return error if not password given 
 			w.WriteHeader(http.StatusBadRequest)

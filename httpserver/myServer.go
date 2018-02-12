@@ -9,6 +9,7 @@ import (
 
 var s http.Server
 
+
 /*
 initalizes an http server handled by hashHandler
 */
@@ -43,6 +44,7 @@ func Run(port string) {
         defer wait.Done()
         s.ListenAndServe()
     }()
+
 
     wait.Wait()
 }
