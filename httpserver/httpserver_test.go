@@ -10,7 +10,7 @@ import (
    "time"
    "sync"
    "strconv"
-   // "fmt"
+   "fmt"
 )
 
 /*
@@ -242,4 +242,32 @@ func TestHashHandlerPasswordNotHashedFor5Seconds(t *testing.T) {
 	if duration < 5 || duration > 6 {
 		t.Errorf("Socket lagging for %v seconds wanted around 5", duration)
 	} 
+}
+
+/*
+TEST FOR STATISTICS
+*/
+func TestUpdateStatistics(t *testing.T) {
+  tot := stats.Total
+  a := stats.Average
+
+  updateStatistics(time.Millisecond)
+
+  new_avg := (tot * a + 1)/(tot + 1) 
+
+  if stats.Total != tot + 1 || stats.Average != new_avg {
+    t.Errorf("Expected new total %v got %v, expeted new average %v got %v", tot + 1, stats.Total, new_avg, stats.Average)
+  }
+}
+
+func TestGetStatistics(t *testing.T) {
+  res, _ := http.Get(ts.URL + "/stats")
+  js := getBodyOfResponse(res)
+
+  expected := fmt.Sprintf("{\"total\":%v,\"average\":%v}", stats.Total, stats.Average)
+  fmt.Println(expected)
+  
+  if string(js) != expected {
+    t.Errorf("/stats returned %v wanted %v", js, expected)
+  }
 }

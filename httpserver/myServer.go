@@ -2,9 +2,9 @@ package httpserver
 
 import (
     "net/http"
-    // "fmt"
     "context"
     "sync"
+    "log"
 )
 
 var s http.Server
@@ -25,7 +25,10 @@ func makeServer(port string) {
 Shuts down the server with no cancel or deadline
 */
 func shutdownMyServer() {
-	s.Shutdown(context.Background())
+	err := s.Shutdown(context.Background())
+    if err != nil {
+        log.Fatal(err)
+    }
 }
 
 /*
@@ -42,7 +45,10 @@ func Run(port string) {
 
 	go func () { 
         defer wait.Done()
-        s.ListenAndServe()
+        err := s.ListenAndServe()
+        if err != nil {
+            log.Fatal(err)
+        }
     }()
 
 
