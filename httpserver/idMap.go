@@ -1,18 +1,18 @@
 package httpserver
 
 import (
-    "sync"
-    "strconv"
+	"strconv"
+	"sync"
 )
 
 /*
 Stores objects by identifiers
-Ensures that the key is an string integer for easy 
+Ensures that the key is an string integer for easy
 Enables concurrent manipulation w/ read & write locks
 */
 type IdMap struct {
-	sync.RWMutex;
-	m map[string]string;
+	sync.RWMutex
+	m map[string]string
 }
 
 //Next id to return, insures uniqueness by synced incrementing
@@ -22,9 +22,9 @@ var nextID int = 0
 Returns a unique id by incrementing nextId, returns through an int channel
 */
 func GetCurrentId(i chan int) {
-   id := nextID
-   nextID++
-   i <- id
+	id := nextID
+	nextID++
+	i <- id
 }
 
 /*
@@ -35,8 +35,8 @@ Converts the integer into a string for easily getting from path string
 func (i *IdMap) WriteToMap(value string, id int) {
 	strid := strconv.Itoa(id)
 	i.Lock()
-    i.m[strid] = value
-    i.Unlock()
+	i.m[strid] = value
+	i.Unlock()
 }
 
 /*
@@ -49,4 +49,3 @@ func (i *IdMap) ReadFromMap(id string) string {
 	i.RUnlock()
 	return value
 }
-

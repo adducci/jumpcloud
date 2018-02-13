@@ -1,17 +1,16 @@
 package password
 
 import (
-   "testing"
-   "bytes"
+	"bytes"
+	"testing"
 )
-
 
 //Test stringToBytes
 func TestPassword1(t *testing.T) {
 	cases := []struct {
-		in string
+		in   string
 		want []byte
-	} {
+	}{
 		{"angryMonkey", []byte("angryMonkey")},
 	}
 	for _, c := range cases {
@@ -25,9 +24,9 @@ func TestPassword1(t *testing.T) {
 //Test bytesToBase64String
 func TestPassword2(t *testing.T) {
 	cases := []struct {
-		in []byte
+		in   []byte
 		want string
-	} {
+	}{
 		{[]byte("angryMonkey"), "YW5ncnlNb25rZXk="},
 	}
 	for _, c := range cases {
@@ -42,7 +41,7 @@ func TestPassword2(t *testing.T) {
 func TestPassword3(t *testing.T) {
 	cases := []struct {
 		in, want string
-	} {
+	}{
 		{"angryMonkey", "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q=="},
 	}
 	for _, c := range cases {
