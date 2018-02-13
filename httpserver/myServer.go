@@ -7,9 +7,18 @@ import (
     "log"
 )
 
+
+/**************
+GLOBAL VARIABLES
+***************/
+//The server
 var s http.Server
 
 
+
+/****************
+FUNCTIONS
+****************/
 /*
 initalizes an http server handled by hashHandler
 */

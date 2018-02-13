@@ -82,15 +82,17 @@ func TestMyServerRun(t *testing.T) {
 }
 
 func TestMyServerShutdown(t *testing.T) {
-  go Run("8082")
+  go Run("8083")
 
   var wait sync.WaitGroup
   wait.Add(1)
 
   var res *http.Response
+  v := url.Values{}
+  v.Set("password", "angryMonkey")
   go func () { 
     defer wait.Done()
-    res = postToHash("angryMonkey")
+    res, _ = http.PostForm("http://localhost:8083/hash", v)
   }()
 
   shutdownMyServer()
@@ -102,7 +104,7 @@ func TestMyServerShutdown(t *testing.T) {
     t.Errorf("Shutdown not processing requests already sent")
   }
 
-  _, err := http.Get("localhost:8082/")
+  _, err := http.Get("localhost:8083/")
   if err == nil {
     t.Errorf("Server accepting requests after shutdown")
   }
@@ -236,7 +238,7 @@ func TestHashHandlerPasswordGetInvalidId(t *testing.T) {
 func TestHashHandlerPasswordNotHashedFor5Seconds(t *testing.T) {
 	start := time.Now()
 
-  computeHash("angryMonkey", "5")
+  computeHash("angryMonkey", 5)
 
   duration := time.Since(start).Seconds()
 	if duration < 5 || duration > 6 {
@@ -244,30 +246,107 @@ func TestHashHandlerPasswordNotHashedFor5Seconds(t *testing.T) {
 	} 
 }
 
-/*
-TEST FOR STATISTICS
-*/
-func TestUpdateStatistics(t *testing.T) {
-  tot := stats.Total
-  a := stats.Average
-
-  updateStatistics(time.Millisecond)
-
-  new_avg := (tot * a + 1)/(tot + 1) 
-
-  if stats.Total != tot + 1 || stats.Average != new_avg {
-    t.Errorf("Expected new total %v got %v, expeted new average %v got %v", tot + 1, stats.Total, new_avg, stats.Average)
-  }
-}
-
 func TestGetStatistics(t *testing.T) {
   res, _ := http.Get(ts.URL + "/stats")
   js := getBodyOfResponse(res)
 
-  expected := fmt.Sprintf("{\"total\":%v,\"average\":%v}", stats.Total, stats.Average)
-  fmt.Println(expected)
+  expected := fmt.Sprintf("{\"total\":%v,\"average\":%v}", st.Total, st.Average)
   
   if string(js) != expected {
     t.Errorf("/stats returned %v wanted %v", js, expected)
+  }
+}
+
+/*
+TEST FOR STATISTICS
+*/
+
+func TestNewStats(t *testing.T) {
+  st := NewStats()
+
+  if st.Total != 0 || st.Average >= 0 {
+      t.Errorf("Expected new stats to start with 0, -1 got %v, %v", st.Total, st.Average)
+  }
+}
+
+func TestAdjustAverage(t *testing.T) {
+  got := adjustAverage(3, 3, 4)
+
+  if got != 3.25 {
+      t.Errorf("adjustAverage(3,3,4) got %v wanted 3.25", got)
+  }
+}
+
+func TestUpdateStatistics(t *testing.T) {
+  s := Stats{3, 3}
+
+  s.UpdateStatistics(time.Millisecond * 4)
+
+  if s.Total != 4 || s.Average != 3.25 {
+    t.Errorf("Expected new total 4 got %v, expeted new average 3.25 got %v", s.Total, s.Average)
+  }
+}
+
+func TestEncode(t *testing.T) {
+  s := Stats{3, 3}
+
+  j := s.Encode()
+
+  expected := "{\"total\":3,\"average\":3}"
+
+  if j != expected {
+    t.Errorf("Encode returned %v wanted %v", s.Total, expected)
+  }
+}
+
+/*
+TEST FOR IDMAP
+*/
+
+func TestGetCurrentId(t *testing.T) {
+  ic := make(chan int)
+  go GetCurrentId(ic)
+  go GetCurrentId(ic)
+  id1, id2 := <- ic, <- ic
+
+  diff := id1 - id2
+
+  if diff != 1 && diff != -1 {
+      t.Errorf("Expected GetCurrentId(chan int) to return incremental ids got %v, %v", id1, id2)
+  }
+}
+
+func TestReadFromMap(t *testing.T) {
+  i := IdMap{m : make(map[string]string)}
+
+  i.m["0"] = "hash1"
+  got := i.ReadFromMap("0")
+
+  if got != "hash1" {
+      t.Errorf("ReadFromMap returned %v wanted hash1", got)
+  }
+}
+
+func TestConcurrentWriteToMap(t *testing.T) {
+  i := IdMap{m : make(map[string]string)}
+
+  var wait sync.WaitGroup
+  wait.Add(2)
+
+  go func () { 
+    defer wait.Done()
+    i.WriteToMap("hash1", 0)
+  }()
+
+   go func () { 
+    defer wait.Done()
+    i.WriteToMap("hash2", 1)
+  }()
+
+
+  wait.Wait()
+
+  if i.m["0"] != "hash1" || i.m["1"] != "hash2" {
+      t.Errorf("WriteToMap(hash1, 0) writes %v expected hash1", i.ReadFromMap("0"))
   }
 }
